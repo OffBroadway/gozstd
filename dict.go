@@ -30,18 +30,18 @@ static size_t ZDICT_optimizeTrainFromBuffer_fastCover_wrapper(void* dictBuffer, 
 {
     ZDICT_fastCover_params_t params;
     memset(&params, 0, sizeof(params));
-	params.k = kvalue;
+    params.k = kvalue;
     params.d = 8;
-	params.f = 20;
+    params.f = 20;
     params.steps = 4;
-	params.splitPoint = 0.75;
-	params.accel = 1;
-	params.nbThreads = nbThreads;
+    params.splitPoint = 0.75;
+    params.accel = 1;
+    params.nbThreads = nbThreads;
     params.zParams.compressionLevel = compressionLevel;
     params.zParams.notificationLevel = 0;
     return ZDICT_optimizeTrainFromBuffer_fastCover(dictBuffer, dictBufferCapacity,
-                                               samplesBuffer, samplesSizes, nbSamples,
-                                               &params);
+        samplesBuffer, samplesSizes, nbSamples,
+        &params);
 }
 
 */
