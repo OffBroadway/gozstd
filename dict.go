@@ -32,6 +32,7 @@ static size_t ZDICT_optimizeTrainFromBuffer_fastCover_wrapper(void* dictBuffer, 
     memset(&params, 0, sizeof(params));
 	params.k = kvalue;
     params.d = 8;
+	params.f = 20;
     params.steps = 4;
 	params.splitPoint = 0.75;
 	params.accel = 1;
