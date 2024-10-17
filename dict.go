@@ -10,6 +10,7 @@ package gozstd
 #include "zdict.h"
 
 #include <stdint.h>  // for uintptr_t
+#include <string.h>  // for memset
 
 // The following *_wrapper functions allow avoiding memory allocations
 // durting calls from Go.
@@ -21,6 +22,24 @@ static ZSTD_CDict* ZSTD_createCDict_wrapper(uintptr_t dictBuffer, size_t dictSiz
 
 static ZSTD_DDict* ZSTD_createDDict_wrapper(uintptr_t dictBuffer, size_t dictSize) {
 	return ZSTD_createDDict((const void *)dictBuffer, dictSize);
+}
+
+static size_t ZDICT_optimizeTrainFromBuffer_fastCover_wrapper(void* dictBuffer, size_t dictBufferCapacity,
+	const void* samplesBuffer, const size_t* samplesSizes, unsigned nbSamples,
+	unsigned kvalue, int compressionLevel, unsigned nbThreads)
+{
+    ZDICT_fastCover_params_t params;
+    memset(&params, 0, sizeof(params));
+	params.k = kvalue;
+    params.d = 8;
+    params.steps = 4;
+	params.splitPoint = 0.75;
+	params.accel = 1;
+    params.zParams.compressionLevel = compressionLevel;
+    params.zParams.notificationLevel = 0;
+    return ZDICT_optimizeTrainFromBuffer_fastCover(dictBuffer, dictBufferCapacity,
+                                               samplesBuffer, samplesSizes, nbSamples,
+                                               &params);
 }
 
 */
@@ -87,6 +106,58 @@ func BuildDict(samples [][]byte, desiredDictLen int) []byte {
 		unsafe.Pointer(&samplesBuf[0]),
 		&samplesSizes[0],
 		C.unsigned(len(samplesSizes)))
+	buildDictLock.Unlock()
+	if C.ZDICT_isError(result) != 0 {
+		// Return empty dictionary, since the original samples are too small.
+		return nil
+	}
+
+	dictLen := int(result)
+	return dict[:dictLen]
+}
+
+// BuildDictFast returns dictionary built from the given samples.
+//
+// The resulting dictionary size will be close to desiredDictLen.
+//
+// The returned dictionary may be passed to NewCDict* and NewDDict.
+func BuildDictFast(samplesBuf []byte, desiredDictLen int, kValue uint, compressionLevel int, threads uint) []byte {
+	if desiredDictLen < minDictLen {
+		desiredDictLen = minDictLen
+	}
+	dict := make([]byte, desiredDictLen)
+
+	// Calculate the total samples size.
+	samplesBufLen := len(samplesBuf)
+	samplesCount := samplesBufLen / 4096
+	if samplesBufLen%4096 != 0 {
+		samplesCount++
+	}
+
+	// Construct samplesSizes.
+	samplesSizes := make([]C.size_t, 0, samplesCount)
+	for i := 0; i < samplesBufLen/4096; i++ {
+		samplesSizes = append(samplesSizes, C.size_t(4096))
+	}
+	if samplesBufLen%4096 != 0 {
+		samplesSizes = append(samplesSizes, C.size_t(samplesBufLen%4096))
+	}
+
+	// Run ZDICT_trainFromBuffer under lock, since it looks like it
+	// is unsafe for concurrent usage (it just randomly crashes).
+	// TODO: remove this restriction.
+
+	buildDictLock.Lock()
+	result := C.ZDICT_optimizeTrainFromBuffer_fastCover_wrapper(
+		unsafe.Pointer(&dict[0]),
+		C.size_t(len(dict)),
+		unsafe.Pointer(&samplesBuf[0]),
+		&samplesSizes[0],
+		C.unsigned(len(samplesSizes)),
+		C.unsigned(kValue),
+		C.int(compressionLevel),
+		C.unsigned(threads),
+	)
 	buildDictLock.Unlock()
 	if C.ZDICT_isError(result) != 0 {
 		// Return empty dictionary, since the original samples are too small.
