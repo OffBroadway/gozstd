@@ -36,6 +36,7 @@ static size_t ZDICT_optimizeTrainFromBuffer_fastCover_wrapper(void* dictBuffer, 
     params.steps = 4;
 	params.splitPoint = 0.75;
 	params.accel = 1;
+	params.nbThreads = nbThreads;
     params.zParams.compressionLevel = compressionLevel;
     params.zParams.notificationLevel = 0;
     return ZDICT_optimizeTrainFromBuffer_fastCover(dictBuffer, dictBufferCapacity,
